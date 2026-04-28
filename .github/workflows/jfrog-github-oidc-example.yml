@@ -1,25 +1,58 @@
 name: "Setup JFrog CLI OIDC Example"
-on: push
+
+on:
+  push:
+    branches: [ "main" ] # Or your specific branch
 
 permissions:
-  # This is required for requesting the OIDC token
   id-token: write
-  # This is required for actions/checkout
   contents: read
+
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-and-scan:
+    # Change from ubuntu-latest to self-hosted
+    runs-on: self-hosted
+    
+    env:
+      JF_URL: ${{ vars.JF_URL }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup JFrog CLI
         uses: jfrog/setup-jfrog-cli@v4
+        with:
+          # Ensure this matches your Identity Provider name in JFrog
+          oidc-provider-name: BiggieFudge/dvna@github
         env:
           JF_URL: ${{ vars.JF_URL }}
-        with:
-          oidc-provider-name: BiggieFudge/dvna@github
 
-      - name: Run JFrog CLI
+      - name: Build Docker Image
+        id: build
         run: |
-          # Ping the server
-          jf rt ping
+          # 1. Clean the URL for Docker (remove https:// and trailing slashes)
+          # Example: https://idani.jfrog.io/ -> idani.jfrog.io
+          REGISTRY_URL=$(echo "${{ vars.JF_URL }}" | sed -e 's|^https://||' -e 's|/$||')
+          
+          # 2. Define the full image tag
+          IMAGE_NAME="$REGISTRY_URL/docker-local/dvna:${{ github.sha }}"
+          
+          echo "Building: $IMAGE_NAME"
+          
+          # 3. Standard Docker build
+          docker build -t "$IMAGE_NAME" .
+          
+          # 4. Export the image name so the scan step can see it
+          echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
+
+      - name: JFrog Docker Scan
+        run: |
+          # The CLI uses the OIDC token automatically to authenticate the scan
+          jf docker scan ${{ env.IMAGE_NAME }}
+
+      - name: Cleanup (Optional)
+        if: always()
+        run: |
+          # Remove the local image to save space on your self-hosted runner
+          docker rmi ${{ env.IMAGE_NAME }} || true
