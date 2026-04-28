@@ -2,7 +2,7 @@ name: "Setup JFrog CLI OIDC Example"
 
 on:
   push:
-    branches: [ "main" ] # Or your specific branch
+    branches: [ "master" ] # Or your specific branch
 
 permissions:
   id-token: write
