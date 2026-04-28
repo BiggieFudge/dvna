@@ -52,7 +52,7 @@ jobs:
       - name: JFrog Docker Scan
         run: |
           # Automatically uses OIDC token for authentication
-          jf docker scan ${{ env.IMAGE_NAME }}
+          jf docker scan ${{ env.IMAGE_NAME }} --project=etn
 
       - name: Ping JFrog
         run: |
