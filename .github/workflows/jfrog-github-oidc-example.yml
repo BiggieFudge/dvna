@@ -30,14 +30,20 @@ jobs:
 
       - name: Build Docker Image
         run: |
+          # 1. Prepare variables
           REGISTRY_URL=$(echo "${{ vars.JF_URL }}" | sed -e 's|^https://||' -e 's|/$||')
           IMAGE_NAME="$REGISTRY_URL/docker-local/dvna:${{ github.sha }}"
-          
-          # We pass 'strict-ssl=false' as a build argument
-          docker build \
-            --build-arg NPM_CONFIG_STRICT_SSL=false \
-            -t "$IMAGE_NAME" .
-          
+
+          # 2. THE FIX: Modify the Dockerfile on the fly to disable SSL checks for npm
+          # This inserts 'npm config set strict-ssl false' before the 'npm install' command
+          sed -i 's/npm install/npm config set strict-ssl false \&\& npm install/' Dockerfile
+
+          echo "Building: $IMAGE_NAME"
+
+          # 3. Build the image
+          docker build --network=host -t "$IMAGE_NAME" .
+
+          # 4. Export image name for the scan step
           echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
 
       - name: JFrog Docker Scan
