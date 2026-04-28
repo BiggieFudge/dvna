@@ -29,21 +29,15 @@ jobs:
           JF_URL: ${{ vars.JF_URL }}
 
       - name: Build Docker Image
-        id: build
         run: |
-          # 1. Clean the URL for Docker (remove https:// and trailing slashes)
-          # Example: https://idani.jfrog.io/ -> idani.jfrog.io
           REGISTRY_URL=$(echo "${{ vars.JF_URL }}" | sed -e 's|^https://||' -e 's|/$||')
-          
-          # 2. Define the full image tag
           IMAGE_NAME="$REGISTRY_URL/docker-local/dvna:${{ github.sha }}"
           
-          echo "Building: $IMAGE_NAME"
+          # We pass 'strict-ssl=false' as a build argument
+          docker build \
+            --build-arg NPM_CONFIG_STRICT_SSL=false \
+            -t "$IMAGE_NAME" .
           
-          # 3. Standard Docker build
-          docker build -t "$IMAGE_NAME" .
-          
-          # 4. Export the image name so the scan step can see it
           echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
 
       - name: JFrog Docker Scan
