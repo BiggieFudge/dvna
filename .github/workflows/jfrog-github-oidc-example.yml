@@ -2,15 +2,17 @@ name: "Setup JFrog CLI OIDC Example"
 
 on:
   push:
-    branches: [ "master" ] # Or your specific branch
+    branches: [ "main", "master" ]
 
 permissions:
+  # This is required for requesting the OIDC token
   id-token: write
+  # This is required for actions/checkout
   contents: read
 
 jobs:
   build-and-scan:
-    # Change from ubuntu-latest to self-hosted
+    # Set to self-hosted for your macOS runner
     runs-on: self-hosted
     
     env:
@@ -23,36 +25,36 @@ jobs:
       - name: Setup JFrog CLI
         uses: jfrog/setup-jfrog-cli@v4
         with:
-          # Ensure this matches your Identity Provider name in JFrog
+          # Ensure this name exactly matches the OIDC integration in your JFrog UI
           oidc-provider-name: BiggieFudge/dvna@github
         env:
           JF_URL: ${{ vars.JF_URL }}
 
       - name: Build Docker Image
+        id: build
         run: |
-          # 1. Prepare variables
+          # 1. Prepare variables (strip protocol for Docker)
           REGISTRY_URL=$(echo "${{ vars.JF_URL }}" | sed -e 's|^https://||' -e 's|/$||')
           IMAGE_NAME="$REGISTRY_URL/docker-local/dvna:${{ github.sha }}"
-
-          # 2. THE FIX: Modify the Dockerfile on the fly to disable SSL checks for npm
-          # This inserts 'npm config set strict-ssl false' before the 'npm install' command
-          sed -i 's/npm install/npm config set strict-ssl false \&\& npm install/' Dockerfile
-
-          echo "Building: $IMAGE_NAME"
-
-          # 3. Build the image
+          
+          # 2. Fix Dockerfile for macOS compatibility and bypass SSL/Firewall issues
+          # We use perl here because macOS 'sed' and Linux 'sed' handle '-i' differently.
+          perl -i -pe 's/npm install/npm config set strict-ssl false && npm install/' Dockerfile
+          
+          echo "Building image: $IMAGE_NAME"
+          
+          # 3. Build the image using the host network to leverage your runner's connection
           docker build --network=host -t "$IMAGE_NAME" .
-
+          
           # 4. Export image name for the scan step
           echo "IMAGE_NAME=$IMAGE_NAME" >> $GITHUB_ENV
 
       - name: JFrog Docker Scan
         run: |
-          # The CLI uses the OIDC token automatically to authenticate the scan
+          # Automatically uses OIDC token for authentication
           jf docker scan ${{ env.IMAGE_NAME }}
 
-      - name: Cleanup (Optional)
-        if: always()
+      - name: Ping JFrog
         run: |
-          # Remove the local image to save space on your self-hosted runner
-          docker rmi ${{ env.IMAGE_NAME }} || true
+          # Simple check to confirm CLI connectivity
+          jf rt ping
