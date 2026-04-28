@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup JFrog CLI
-        uses: jfrog/setup-jfrog-cli@4.8.1
+        uses: jfrog/setup-jfrog-cli@v4.8.1
         with:
           # Ensure this name exactly matches the OIDC integration in your JFrog UI
           oidc-provider-name: BiggieFudge/dvna@github
